@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Normal app theme -->
+    <style name="Theme.Absensi" parent="Theme.MaterialComponents.Light.NoActionBar">
+        <item name="colorPrimary">@color/primary</item>
+        <item name="colorPrimaryDark">@color/primary_dark</item>
+        <item name="android:statusBarColor">@color/primary</item>
+        <item name="android:navigationBarColor">@color/white</item>
+        <item name="android:windowLightNavigationBar">true</item>
+    </style>
+
+    <!-- Splash theme — shown while app loads -->
+    <style name="Theme.Absensi.Splash" parent="Theme.Absensi">
+        <item name="android:windowBackground">@drawable/splash_bg</item>
+    </style>
+</resources>

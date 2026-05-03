@@ -1,0 +1,17 @@
+{
+  "name": "Sistem Absensi SMKN 1 Arahan",
+  "short_name": "Absensi",
+  "description": "Sistem Absensi Geolocation Terintegrasi untuk Siswa SMKN 1 Arahan.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#2563eb",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
