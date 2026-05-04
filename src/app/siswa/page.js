@@ -59,21 +59,29 @@ export default function StudentDashboard() {
     return () => clearInterval(timer);
   }, [router]);
 
-  // Start GPS on mount
-  useEffect(() => {
+  const startGpsTracking = () => {
     if (!navigator.geolocation) {
       setGpsStatus('unavailable');
       return;
     }
 
     setGpsStatus('loading');
+    if (watchId !== null) navigator.geolocation.clearWatch(watchId);
 
     const id = navigator.geolocation.watchPosition(
       (position) => {
         const { latitude, longitude, accuracy } = position.coords;
-        setCurrentLocation({ lat: latitude, lng: longitude });
-        setGpsAccuracy(Math.round(accuracy));
+        const currentAcc = Math.round(accuracy);
+        
+        setGpsAccuracy(currentAcc);
         setGpsStatus('granted');
+
+        // Logic: Only update location if accuracy is better than 100m
+        // or if it's the first reading
+        setCurrentLocation(prev => {
+          if (!prev) return { lat: latitude, lng: longitude };
+          return { lat: latitude, lng: longitude };
+        });
       },
       (error) => {
         console.error('GPS Error:', error);
@@ -87,16 +95,26 @@ export default function StudentDashboard() {
       },
       {
         enableHighAccuracy: true,
-        timeout: 15000,
-        maximumAge: 5000
+        timeout: 30000, // Increased to 30s for better lock
+        maximumAge: 0   // Force fresh reading
       }
     );
     setWatchId(id);
+  };
 
+  // Start GPS on mount
+  useEffect(() => {
+    startGpsTracking();
     return () => {
-      navigator.geolocation.clearWatch(id);
+      if (watchId !== null) navigator.geolocation.clearWatch(watchId);
     };
   }, []);
+
+  const refreshGps = () => {
+    setCurrentLocation(null);
+    setGpsAccuracy(null);
+    startGpsTracking();
+  };
 
   // Calculate distance whenever location changes
   useEffect(() => {
@@ -251,24 +269,40 @@ export default function StudentDashboard() {
         )}
 
         {gpsStatus === 'granted' && (
-          <div className="flex justify-between items-center">
-            <div className="flex items-center gap-4">
-              <span style={{ fontSize: '2rem' }}>{isWithinRadius ? '✅' : '⚠️'}</span>
-              <div>
-                <p style={{ fontWeight: '700', margin: 0, color: isWithinRadius ? '#065f46' : '#92400e' }}>
-                  {isWithinRadius ? 'Di Dalam Area Sekolah' : 'Di Luar Area Sekolah'}
-                </p>
-                <p style={{ fontSize: '0.8rem', color: isWithinRadius ? '#047857' : '#b45309', margin: 0 }}>
-                  Jarak: <strong>{distance}m</strong> dari titik absen {gpsAccuracy && `• Akurasi: ±${gpsAccuracy}m`}
-                </p>
+          <div>
+            <div className="flex justify-between items-center mb-2">
+              <div className="flex items-center gap-4">
+                <span style={{ fontSize: '2rem' }}>{isWithinRadius ? '✅' : '⚠️'}</span>
+                <div>
+                  <p style={{ fontWeight: '700', margin: 0, color: isWithinRadius ? '#065f46' : '#92400e' }}>
+                    {isWithinRadius ? 'Di Dalam Area Sekolah' : 'Di Luar Area Sekolah'}
+                  </p>
+                  <p style={{ fontSize: '0.8rem', color: isWithinRadius ? '#047857' : '#b45309', margin: 0 }}>
+                    Jarak: <strong>{distance}m</strong> dari titik absen
+                  </p>
+                </div>
               </div>
+              <button 
+                onClick={refreshGps}
+                style={{ background: 'white', border: '1px solid #e2e8f0', padding: '0.4rem 0.6rem', borderRadius: 'var(--radius-md)', fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-secondary)' }}
+              >
+                🔄 Refresh
+              </button>
             </div>
-            <div style={{
-              width: '12px', height: '12px', borderRadius: '50%',
-              background: isWithinRadius ? '#10b981' : '#f59e0b',
-              boxShadow: `0 0 8px ${isWithinRadius ? '#10b981' : '#f59e0b'}`,
-              animation: 'pulse 2s infinite'
-            }} />
+            
+            <div style={{ padding: '0.75rem', borderRadius: 'var(--radius-sm)', background: gpsAccuracy > 50 ? '#fff7ed' : '#f0f9ff', border: `1px solid ${gpsAccuracy > 50 ? '#fed7aa' : '#bae6fd'}`, marginTop: '0.5rem' }}>
+               <div className="flex justify-between items-center">
+                 <span style={{ fontSize: '0.75rem', fontWeight: '600', color: gpsAccuracy > 50 ? '#9a3412' : '#0369a1' }}>
+                   📡 Akurasi GPS: ±{gpsAccuracy}m
+                 </span>
+                 <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: gpsAccuracy > 50 ? '#f97316' : '#0ea5e9', animation: 'pulse 2s infinite' }} />
+               </div>
+               {gpsAccuracy > 50 && (
+                 <p style={{ fontSize: '0.7rem', color: '#9a3412', margin: '0.25rem 0 0' }}>
+                   Akurasi rendah. Silakan pindah ke tempat terbuka (luar ruangan) dan klik <strong>Refresh</strong>.
+                 </p>
+               )}
+            </div>
           </div>
         )}
       </div>
