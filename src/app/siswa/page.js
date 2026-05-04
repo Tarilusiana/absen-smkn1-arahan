@@ -2,7 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { SCHOOL_LAT, SCHOOL_LNG, RADIUS_METER } from '@/config/geofence';
+import { 
+  SCHOOL_LAT, SCHOOL_LNG, RADIUS_METER,
+  JAM_MASUK_MULAI, JAM_MASUK_AKHIR,
+  JAM_PULANG_MULAI, JAM_PULANG_AKHIR
+} from '@/config/geofence';
 
 const SCHOOL_COORDS = { lat: SCHOOL_LAT, lng: SCHOOL_LNG };
 
@@ -198,7 +202,14 @@ export default function StudentDashboard() {
 
   if (!user) return <div className="page-container flex items-center justify-center">Memuat...</div>;
 
-  const canAttend = gpsStatus === 'granted' && isWithinRadius && !loading;
+  const now = new Date();
+  const currentHour = now.getHours() + now.getMinutes() / 60;
+
+  const isMasukTime = currentHour >= JAM_MASUK_MULAI && currentHour <= JAM_MASUK_AKHIR;
+  const isPulangTime = currentHour >= JAM_PULANG_MULAI && currentHour <= JAM_PULANG_AKHIR;
+
+  const canAttendMasuk = canAttend && isMasukTime;
+  const canAttendPulang = canAttend && isPulangTime;
 
   return (
     <div className="page-container" style={{ padding: '1rem', maxWidth: '480px', margin: '0 auto', background: '#fff' }}>
@@ -317,27 +328,50 @@ export default function StudentDashboard() {
           <button 
             className="btn-success w-full" 
             onClick={() => handleAttendance('masuk')}
-            disabled={!canAttend}
-            style={{ padding: '1.25rem 1rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', opacity: !canAttend ? 0.5 : 1 }}
+            disabled={!canAttendMasuk}
+            style={{ 
+              padding: '1.25rem 1rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', 
+              opacity: !canAttendMasuk ? 0.5 : 1,
+              filter: !isMasukTime && canAttend ? 'grayscale(1)' : 'none'
+            }}
           >
-            <span style={{ fontSize: '1.5rem' }}>📥</span>
+            <span style={{ fontSize: '1.5rem' }}>⏹️</span>
             <span>{loading ? '...' : 'Absen Masuk'}</span>
           </button>
           <button 
             className="btn-primary w-full" 
             onClick={() => handleAttendance('pulang')}
-            disabled={!canAttend}
-            style={{ padding: '1.25rem 1rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', backgroundColor: canAttend ? '#f59e0b' : '#9ca3af', opacity: !canAttend ? 0.5 : 1 }}
+            disabled={!canAttendPulang}
+            style={{ 
+              padding: '1.25rem 1rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', 
+              backgroundColor: canAttendPulang ? '#f59e0b' : '#9ca3af', 
+              opacity: !canAttendPulang ? 0.5 : 1,
+              filter: !isPulangTime && canAttend ? 'grayscale(1)' : 'none'
+            }}
           >
-            <span style={{ fontSize: '1.5rem' }}>📤</span>
+            <span style={{ fontSize: '1.5rem' }}>⏹️</span>
             <span>{loading ? '...' : 'Absen Pulang'}</span>
           </button>
         </div>
-        {gpsStatus === 'granted' && !isWithinRadius && (
-          <p style={{ color: 'var(--danger-text)', fontSize: '0.8rem', marginTop: '1rem', fontWeight: '500' }}>
-            Anda berada <strong>{distance}m</strong> dari titik absen. Maksimal 100m.
+        
+        {!isMasukTime && !isPulangTime && (
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '1rem', fontWeight: '500' }}>
+            Sistem absensi sedang ditutup.
           </p>
         )}
+
+        {isMasukTime && !canAttendMasuk && gpsStatus === 'granted' && (
+          <p style={{ color: 'var(--danger-text)', fontSize: '0.8rem', marginTop: '1rem', fontWeight: '500' }}>
+            Anda harus berada di area sekolah untuk absen masuk.
+          </p>
+        )}
+
+        {isPulangTime && !canAttendPulang && gpsStatus === 'granted' && (
+          <p style={{ color: 'var(--danger-text)', fontSize: '0.8rem', marginTop: '1rem', fontWeight: '500' }}>
+            Anda harus berada di area sekolah untuk absen pulang.
+          </p>
+        )}
+
         {gpsStatus !== 'granted' && (
           <p style={{ color: 'var(--danger-text)', fontSize: '0.8rem', marginTop: '1rem', fontWeight: '500' }}>
             Aktifkan GPS terlebih dahulu untuk bisa melakukan absensi.
