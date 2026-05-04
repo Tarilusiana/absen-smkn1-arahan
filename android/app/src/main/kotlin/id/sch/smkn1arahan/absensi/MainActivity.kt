@@ -187,7 +187,7 @@ class MainActivity : AppCompatActivity() {
             useWideViewPort = true
             loadWithOverviewMode = true
             mediaPlaybackRequiresUserGesture = false
-            mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+            mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
         }
 
         injectAppCookie()
@@ -215,7 +215,10 @@ class MainActivity : AppCompatActivity() {
             ): Boolean {
                 val url = request?.url?.toString() ?: return false
                 if (url == "about:blank") return false
-                return !url.startsWith(BASE_URL)
+                
+                val host = request.url.host ?: ""
+                val baseHost = android.net.Uri.parse(BASE_URL).host ?: ""
+                return !host.contains(baseHost)
             }
         }
 
