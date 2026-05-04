@@ -91,16 +91,18 @@ class MainActivity : AppCompatActivity() {
         if (isLocationMonitoringActive) return
 
         try {
+            // Request high frequency updates to "warm up" the GPS hardware
+            // This helps the WebView get a precise fix faster
             locationManager.requestLocationUpdates(
                 LocationManager.GPS_PROVIDER,
-                2000L,
+                1000L, // 1 second
                 0f,
                 locationListener,
                 Looper.getMainLooper()
             )
             locationManager.requestLocationUpdates(
                 LocationManager.NETWORK_PROVIDER,
-                2000L,
+                2000L, // 2 seconds
                 0f,
                 locationListener,
                 Looper.getMainLooper()
@@ -187,9 +189,7 @@ class MainActivity : AppCompatActivity() {
             useWideViewPort = true
             loadWithOverviewMode = true
             mediaPlaybackRequiresUserGesture = false
-            mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
-            // Set User Agent agar dikenali sebagai browser Chrome Mobile standar
-            userAgentString = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+            mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
         }
 
         injectAppCookie()
@@ -212,33 +212,12 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
-            override fun onReceivedHttpError(
-                view: WebView?, request: WebResourceRequest?, errorResponse: WebResourceResponse?
-            ) {
-                super.onReceivedHttpError(view, request, errorResponse)
-                // Jika server merespon dengan error (403, 404, 500)
-                if (request?.isForMainFrame == true) {
-                    showOffline()
-                }
-            }
-
-            override fun onReceivedSslError(
-                view: WebView?, handler: SslErrorHandler?, error: android.net.http.SslError?
-            ) {
-                // WARNING: Insecure for production, but helps with chain issues
-                // For now, let's allow it to debug if it's an SSL issue
-                handler?.proceed() 
-            }
-
             override fun shouldOverrideUrlLoading(
                 view: WebView?, request: WebResourceRequest?
             ): Boolean {
                 val url = request?.url?.toString() ?: return false
                 if (url == "about:blank") return false
-                
-                val host = request.url.host ?: ""
-                val baseHost = android.net.Uri.parse(BASE_URL).host ?: ""
-                return !host.contains(baseHost)
+                return !url.startsWith(BASE_URL)
             }
         }
 
@@ -259,22 +238,6 @@ class MainActivity : AppCompatActivity() {
                     )
                 }
             }
-
-            override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
-                val msg = consoleMessage?.message() ?: ""
-                if (consoleMessage?.messageLevel() == ConsoleMessage.MessageLevel.ERROR) {
-                    android.util.Log.e("WebViewError", msg)
-                }
-                return super.onConsoleMessage(consoleMessage)
-            }
-
-            override fun onJsAlert(
-                view: WebView?, url: String?, message: String?, result: JsResult?
-            ): Boolean {
-                android.widget.Toast.makeText(this@MainActivity, message, android.widget.Toast.LENGTH_LONG).show()
-                result?.confirm()
-                return true
-            }
         }
     }
 
@@ -288,13 +251,7 @@ class MainActivity : AppCompatActivity() {
     private fun injectAppCookie() {
         val cookieManager = CookieManager.getInstance()
         cookieManager.setAcceptCookie(true)
-        cookieManager.setAcceptThirdPartyCookies(webView, true)
-        
-        // Gunakan domain saja untuk cookie agar lebih kompatibel
-        val domain = android.net.Uri.parse(BASE_URL).host ?: ""
-        val cookieValue = "app_token=$APP_TOKEN; Domain=$domain; Path=/; Secure; SameSite=None"
-        
-        cookieManager.setCookie(BASE_URL, cookieValue)
+        cookieManager.setCookie(BASE_URL, "app_token=$APP_TOKEN; path=/")
         cookieManager.flush()
     }
 
@@ -304,9 +261,7 @@ class MainActivity : AppCompatActivity() {
         if (isNetworkAvailable()) {
             showWebView()
             injectAppCookie()
-            // Pastikan ada trailing slash untuk konsistensi
-            val url = if (BASE_URL.endsWith("/")) BASE_URL else "$BASE_URL/"
-            webView.loadUrl(url)
+            webView.loadUrl(BASE_URL)
         } else {
             showOffline()
         }

@@ -2,11 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { 
-  SCHOOL_LAT, SCHOOL_LNG, RADIUS_METER,
-  JAM_MASUK_MULAI, JAM_MASUK_AKHIR,
-  JAM_PULANG_MULAI, JAM_PULANG_AKHIR
-} from '@/config/geofence';
+import { SCHOOL_LAT, SCHOOL_LNG, RADIUS_METER } from '@/config/geofence';
 
 const SCHOOL_COORDS = { lat: SCHOOL_LAT, lng: SCHOOL_LNG };
 
@@ -63,29 +59,21 @@ export default function StudentDashboard() {
     return () => clearInterval(timer);
   }, [router]);
 
-  const startGpsTracking = () => {
+  // Start GPS on mount
+  useEffect(() => {
     if (!navigator.geolocation) {
       setGpsStatus('unavailable');
       return;
     }
 
     setGpsStatus('loading');
-    if (watchId !== null) navigator.geolocation.clearWatch(watchId);
 
     const id = navigator.geolocation.watchPosition(
       (position) => {
         const { latitude, longitude, accuracy } = position.coords;
-        const currentAcc = Math.round(accuracy);
-        
-        setGpsAccuracy(currentAcc);
+        setCurrentLocation({ lat: latitude, lng: longitude });
+        setGpsAccuracy(Math.round(accuracy));
         setGpsStatus('granted');
-
-        // Logic: Only update location if accuracy is better than 100m
-        // or if it's the first reading
-        setCurrentLocation(prev => {
-          if (!prev) return { lat: latitude, lng: longitude };
-          return { lat: latitude, lng: longitude };
-        });
       },
       (error) => {
         console.error('GPS Error:', error);
@@ -99,26 +87,16 @@ export default function StudentDashboard() {
       },
       {
         enableHighAccuracy: true,
-        timeout: 30000, // Increased to 30s for better lock
-        maximumAge: 0   // Force fresh reading
+        timeout: 20000,
+        maximumAge: 0
       }
     );
     setWatchId(id);
-  };
 
-  // Start GPS on mount
-  useEffect(() => {
-    startGpsTracking();
     return () => {
-      if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+      navigator.geolocation.clearWatch(id);
     };
   }, []);
-
-  const refreshGps = () => {
-    setCurrentLocation(null);
-    setGpsAccuracy(null);
-    startGpsTracking();
-  };
 
   // Calculate distance whenever location changes
   useEffect(() => {
@@ -201,15 +179,16 @@ export default function StudentDashboard() {
   };
 
   if (!user) return <div className="page-container flex items-center justify-center">Memuat...</div>;
+  
+  // Accuracy Logic: 
+  // - Excellent: < 20m
+  // - Good: < 50m
+  // - Poor: > 50m
+  // - Critical: > 150m (Attendance blocked)
+  const isAccuracyCritical = gpsAccuracy > 150;
+  const isAccuracyPoor = gpsAccuracy > 50;
 
-  const now = new Date();
-  const currentHour = now.getHours() + now.getMinutes() / 60;
-
-  const isMasukTime = currentHour >= JAM_MASUK_MULAI && currentHour <= JAM_MASUK_AKHIR;
-  const isPulangTime = currentHour >= JAM_PULANG_MULAI && currentHour <= JAM_PULANG_AKHIR;
-
-  const canAttendMasuk = canAttend && isMasukTime;
-  const canAttendPulang = canAttend && isPulangTime;
+  const canAttend = gpsStatus === 'granted' && isWithinRadius && !isAccuracyCritical && !loading;
 
   return (
     <div className="page-container" style={{ padding: '1rem', maxWidth: '480px', margin: '0 auto', background: '#fff' }}>
@@ -280,40 +259,26 @@ export default function StudentDashboard() {
         )}
 
         {gpsStatus === 'granted' && (
-          <div>
-            <div className="flex justify-between items-center mb-2">
-              <div className="flex items-center gap-4">
-                <span style={{ fontSize: '2rem' }}>{isWithinRadius ? '✅' : '⚠️'}</span>
-                <div>
-                  <p style={{ fontWeight: '700', margin: 0, color: isWithinRadius ? '#065f46' : '#92400e' }}>
-                    {isWithinRadius ? 'Di Dalam Area Sekolah' : 'Di Luar Area Sekolah'}
-                  </p>
-                  <p style={{ fontSize: '0.8rem', color: isWithinRadius ? '#047857' : '#b45309', margin: 0 }}>
-                    Jarak: <strong>{distance}m</strong> dari titik absen
-                  </p>
-                </div>
+          <div className="flex justify-between items-center">
+            <div className="flex items-center gap-4">
+              <span style={{ fontSize: '2rem' }}>
+                {isAccuracyCritical ? '❌' : (isAccuracyPoor ? '⚠️' : (isWithinRadius ? '✅' : '📍'))}
+              </span>
+              <div>
+                <p style={{ fontWeight: '700', margin: 0, color: isAccuracyCritical ? '#991b1b' : (isAccuracyPoor ? '#92400e' : (isWithinRadius ? '#065f46' : 'var(--text-primary)')) }}>
+                  {isAccuracyCritical ? 'Akurasi Terlalu Rendah' : (isAccuracyPoor ? 'Sinyal GPS Lemah' : (isWithinRadius ? 'Di Dalam Area Sekolah' : 'Di Luar Area Sekolah'))}
+                </p>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>
+                  Jarak: <strong>{distance}m</strong> • Akurasi: <strong style={{ color: isAccuracyPoor ? '#ef4444' : '#10b981' }}>±{gpsAccuracy}m</strong>
+                </p>
               </div>
-              <button 
-                onClick={refreshGps}
-                style={{ background: 'white', border: '1px solid #e2e8f0', padding: '0.4rem 0.6rem', borderRadius: 'var(--radius-md)', fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-secondary)' }}
-              >
-                🔄 Refresh
-              </button>
             </div>
-            
-            <div style={{ padding: '0.75rem', borderRadius: 'var(--radius-sm)', background: gpsAccuracy > 50 ? '#fff7ed' : '#f0f9ff', border: `1px solid ${gpsAccuracy > 50 ? '#fed7aa' : '#bae6fd'}`, marginTop: '0.5rem' }}>
-               <div className="flex justify-between items-center">
-                 <span style={{ fontSize: '0.75rem', fontWeight: '600', color: gpsAccuracy > 50 ? '#9a3412' : '#0369a1' }}>
-                   📡 Akurasi GPS: ±{gpsAccuracy}m
-                 </span>
-                 <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: gpsAccuracy > 50 ? '#f97316' : '#0ea5e9', animation: 'pulse 2s infinite' }} />
-               </div>
-               {gpsAccuracy > 50 && (
-                 <p style={{ fontSize: '0.7rem', color: '#9a3412', margin: '0.25rem 0 0' }}>
-                   Akurasi rendah. Silakan pindah ke tempat terbuka (luar ruangan) dan klik <strong>Refresh</strong>.
-                 </p>
-               )}
-            </div>
+            <div style={{
+              width: '12px', height: '12px', borderRadius: '50%',
+              background: isAccuracyCritical ? '#ef4444' : (isAccuracyPoor ? '#f59e0b' : '#10b981'),
+              boxShadow: `0 0 8px ${isAccuracyCritical ? '#ef4444' : (isAccuracyPoor ? '#f59e0b' : '#10b981')}`,
+              animation: 'pulse 2s infinite'
+            }} />
           </div>
         )}
       </div>
@@ -328,51 +293,39 @@ export default function StudentDashboard() {
           <button 
             className="btn-success w-full" 
             onClick={() => handleAttendance('masuk')}
-            disabled={!canAttendMasuk}
-            style={{ 
-              padding: '1.25rem 1rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', 
-              opacity: !canAttendMasuk ? 0.5 : 1,
-              filter: !isMasukTime && canAttend ? 'grayscale(1)' : 'none'
-            }}
+            disabled={!canAttend}
+            style={{ padding: '1.25rem 1rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', opacity: !canAttend ? 0.5 : 1 }}
           >
-            <span style={{ fontSize: '1.5rem' }}>⏹️</span>
+            <span style={{ fontSize: '1.5rem' }}>📥</span>
             <span>{loading ? '...' : 'Absen Masuk'}</span>
           </button>
           <button 
             className="btn-primary w-full" 
             onClick={() => handleAttendance('pulang')}
-            disabled={!canAttendPulang}
-            style={{ 
-              padding: '1.25rem 1rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', 
-              backgroundColor: canAttendPulang ? '#f59e0b' : '#9ca3af', 
-              opacity: !canAttendPulang ? 0.5 : 1,
-              filter: !isPulangTime && canAttend ? 'grayscale(1)' : 'none'
-            }}
+            disabled={!canAttend}
+            style={{ padding: '1.25rem 1rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', backgroundColor: canAttend ? '#f59e0b' : '#9ca3af', opacity: !canAttend ? 0.5 : 1 }}
           >
-            <span style={{ fontSize: '1.5rem' }}>⏹️</span>
+            <span style={{ fontSize: '1.5rem' }}>📤</span>
             <span>{loading ? '...' : 'Absen Pulang'}</span>
           </button>
         </div>
-        
-        {!isMasukTime && !isPulangTime && (
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '1rem', fontWeight: '500' }}>
-            Sistem absensi sedang ditutup.
+        {gpsStatus === 'granted' && isAccuracyCritical && (
+          <p style={{ color: 'var(--danger-text)', fontSize: '0.85rem', marginTop: '1rem', fontWeight: '600', background: '#fef2f2', padding: '0.75rem', borderRadius: 'var(--radius-sm)', border: '1px solid #fee2e2' }}>
+            🛑 <strong>Akurasi GPS Buruk (±{gpsAccuracy}m)</strong><br/>
+            Posisi Anda tidak dapat divalidasi. Mohon keluar ruangan atau menjauh dari gedung tinggi agar mendapatkan sinyal satelit.
           </p>
         )}
-
-        {isMasukTime && !canAttendMasuk && gpsStatus === 'granted' && (
+        {gpsStatus === 'granted' && !isAccuracyCritical && !isWithinRadius && (
           <p style={{ color: 'var(--danger-text)', fontSize: '0.8rem', marginTop: '1rem', fontWeight: '500' }}>
-            Anda harus berada di area sekolah untuk absen masuk.
+            Anda berada <strong>{distance}m</strong> dari titik absen. Maksimal 100m.
           </p>
         )}
-
-        {isPulangTime && !canAttendPulang && gpsStatus === 'granted' && (
-          <p style={{ color: 'var(--danger-text)', fontSize: '0.8rem', marginTop: '1rem', fontWeight: '500' }}>
-            Anda harus berada di area sekolah untuk absen pulang.
+        {gpsStatus === 'granted' && isAccuracyPoor && !isAccuracyCritical && (
+          <p style={{ color: '#92400e', fontSize: '0.8rem', marginTop: '1rem', fontWeight: '500', background: '#fffbeb', padding: '0.5rem', borderRadius: 'var(--radius-sm)' }}>
+            ⚠️ <strong>Akurasi Kurang Stabil:</strong> Jarak mungkin tidak akurat. Jika Anda sudah di sekolah tapi terbaca jauh, mohon tunggu sebentar atau buka Google Maps untuk mempercepat lock GPS.
           </p>
         )}
-
-        {gpsStatus !== 'granted' && (
+        {gpsStatus !== 'granted' && gpsStatus !== 'loading' && (
           <p style={{ color: 'var(--danger-text)', fontSize: '0.8rem', marginTop: '1rem', fontWeight: '500' }}>
             Aktifkan GPS terlebih dahulu untuk bisa melakukan absensi.
           </p>
