@@ -1,10 +1,16 @@
 package id.sch.smkn1arahan.absensi
 
 import android.Manifest
+import android.content.Context
 import android.content.pm.PackageManager
+import android.location.Location
+import android.location.LocationListener
+import android.location.LocationManager
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import android.os.Build
 import android.os.Bundle
+import android.os.Looper
 import android.view.View
 import android.webkit.*
 import android.widget.Button
@@ -17,18 +23,17 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 class MainActivity : AppCompatActivity() {
 
     companion object {
-        // ============================================================
-        //  KONFIGURASI — UBAH URL INI SESUAI SERVER ANDA
-        //  Contoh development : http://192.168.100.21:3000
-        //  Contoh production  : https://absen.smkn1arahan.sch.id
-        // ============================================================
-        private const val BASE_URL = "https://absen.smkn1arahan.sch.id"
+        private const val BASE_URL = "https://abs3.smkn1arahan.my.id"
         private const val APP_TOKEN = "SMKN1ARAHAN-ABSENSI-2026"
     }
 
     private lateinit var webView: WebView
     private lateinit var swipeRefresh: SwipeRefreshLayout
     private lateinit var offlineView: LinearLayout
+    private lateinit var fakeGpsView: LinearLayout
+    private lateinit var locationManager: LocationManager
+
+    private var isLocationMonitoringActive = false
 
     private var geoCallback: GeolocationPermissions.Callback? = null
     private var geoOrigin: String? = null
@@ -40,25 +45,135 @@ class MainActivity : AppCompatActivity() {
         val fineGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: false
         val coarseGranted = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] ?: false
         geoCallback?.invoke(geoOrigin, fineGranted || coarseGranted, false)
+        
+        if (fineGranted || coarseGranted) {
+            startLocationMonitoring()
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Switch from splash theme to normal theme
         setTheme(R.style.Theme_Absensi)
         setContentView(R.layout.activity_main)
 
         webView = findViewById(R.id.webView)
         swipeRefresh = findViewById(R.id.swipeRefresh)
         offlineView = findViewById(R.id.offlineView)
+        fakeGpsView = findViewById(R.id.fakeGpsView)
+        locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
 
         val retryButton: Button = findViewById(R.id.btnRetry)
         retryButton.setOnClickListener { loadApp() }
+
+        val retryFakeGpsButton: Button = findViewById(R.id.btnRetryFakeGps)
+        retryFakeGpsButton.setOnClickListener { checkLocationSecurity() }
 
         setupWebView()
         setupSwipeRefresh()
         requestLocationIfNeeded()
         loadApp()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (hasLocationPermission()) {
+            startLocationMonitoring()
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        locationManager.removeUpdates(locationListener)
+    }
+
+    private fun startLocationMonitoring() {
+        if (!hasLocationPermission()) return
+        if (isLocationMonitoringActive) return
+
+        try {
+            locationManager.requestLocationUpdates(
+                LocationManager.GPS_PROVIDER,
+                2000L,
+                0f,
+                locationListener,
+                Looper.getMainLooper()
+            )
+            locationManager.requestLocationUpdates(
+                LocationManager.NETWORK_PROVIDER,
+                2000L,
+                0f,
+                locationListener,
+                Looper.getMainLooper()
+            )
+            isLocationMonitoringActive = true
+            
+            // Check last known immediately
+            val lastLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+            if (lastLocation != null) {
+                checkIfMockLocation(lastLocation)
+            }
+        } catch (e: SecurityException) {
+            e.printStackTrace()
+        }
+    }
+
+    private val locationListener = object : LocationListener {
+        override fun onLocationChanged(location: Location) {
+            checkIfMockLocation(location)
+        }
+        
+        override fun onProviderEnabled(provider: String) {}
+        override fun onProviderDisabled(provider: String) {}
+    }
+
+    private fun checkIfMockLocation(location: Location) {
+        @Suppress("DEPRECATION")
+        val isFake = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            location.isMock
+        } else {
+            location.isFromMockProvider
+        }
+
+        if (isFake) {
+            showFakeGpsView()
+        } else {
+            if (fakeGpsView.visibility == View.VISIBLE) {
+                hideFakeGpsView()
+                loadApp()
+            }
+        }
+    }
+
+    private fun checkLocationSecurity() {
+        if (!hasLocationPermission()) {
+            requestLocationIfNeeded()
+            return
+        }
+        try {
+            val lastLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+            if (lastLocation != null) {
+                checkIfMockLocation(lastLocation)
+                if (fakeGpsView.visibility != View.VISIBLE) {
+                    loadApp()
+                }
+            } else {
+                hideFakeGpsView()
+                loadApp()
+            }
+        } catch (e: SecurityException) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun showFakeGpsView() {
+        swipeRefresh.visibility = View.GONE
+        offlineView.visibility = View.GONE
+        fakeGpsView.visibility = View.VISIBLE
+        webView.loadUrl("about:blank") // Stop webview loading
+    }
+
+    private fun hideFakeGpsView() {
+        fakeGpsView.visibility = View.GONE
     }
 
     private fun setupWebView() {
@@ -75,21 +190,22 @@ class MainActivity : AppCompatActivity() {
             mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
         }
 
-        // Inject app token cookie so proxy.js allows the request
         injectAppCookie()
 
         webView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
                 swipeRefresh.isRefreshing = false
-                showWebView()
+                if (fakeGpsView.visibility != View.VISIBLE) {
+                    showWebView()
+                }
             }
 
             override fun onReceivedError(
                 view: WebView?, request: WebResourceRequest?, error: WebResourceError?
             ) {
                 super.onReceivedError(view, request, error)
-                if (request?.isForMainFrame == true) {
+                if (request?.isForMainFrame == true && fakeGpsView.visibility != View.VISIBLE) {
                     showOffline()
                 }
             }
@@ -98,13 +214,12 @@ class MainActivity : AppCompatActivity() {
                 view: WebView?, request: WebResourceRequest?
             ): Boolean {
                 val url = request?.url?.toString() ?: return false
-                // Keep navigation within the app domain
+                if (url == "about:blank") return false
                 return !url.startsWith(BASE_URL)
             }
         }
 
         webView.webChromeClient = object : WebChromeClient() {
-            // Forward geolocation permission to Android runtime permission system
             override fun onGeolocationPermissionsShowPrompt(
                 origin: String?, callback: GeolocationPermissions.Callback?
             ) {
@@ -139,6 +254,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun loadApp() {
+        if (fakeGpsView.visibility == View.VISIBLE) return
+        
         if (isNetworkAvailable()) {
             showWebView()
             injectAppCookie()
@@ -151,11 +268,13 @@ class MainActivity : AppCompatActivity() {
     private fun showWebView() {
         swipeRefresh.visibility = View.VISIBLE
         offlineView.visibility = View.GONE
+        fakeGpsView.visibility = View.GONE
     }
 
     private fun showOffline() {
         swipeRefresh.visibility = View.GONE
         offlineView.visibility = View.VISIBLE
+        fakeGpsView.visibility = View.GONE
     }
 
     private fun isNetworkAvailable(): Boolean {
@@ -184,7 +303,7 @@ class MainActivity : AppCompatActivity() {
 
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
-        if (webView.canGoBack()) {
+        if (webView.canGoBack() && webView.url != "about:blank") {
             webView.goBack()
         } else {
             @Suppress("DEPRECATION")

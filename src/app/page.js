@@ -1,13 +1,39 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export default function LoginPage() {
   const router = useRouter();
   const [role, setRole] = useState('siswa'); // Default always siswa
   const [loading, setLoading] = useState(false);
+  const [isChecking, setIsChecking] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
+
+  useEffect(() => {
+    // Check if user is already logged in
+    const savedUser = localStorage.getItem('user');
+    if (savedUser) {
+      try {
+        const user = JSON.parse(savedUser);
+        if (user.role === 'siswa') {
+          router.push('/siswa');
+        } else if (user.role === 'admin') {
+          router.push('/admin');
+        } else if (user.role === 'guru') {
+          router.push('/guru');
+        } else {
+          setIsChecking(false);
+        }
+      } catch (e) {
+        console.error('Error parsing saved user:', e);
+        localStorage.removeItem('user');
+        setIsChecking(false);
+      }
+    } else {
+      setIsChecking(false);
+    }
+  }, [router]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -54,6 +80,27 @@ export default function LoginPage() {
       setLoading(false);
     }
   };
+
+  if (isChecking) {
+    return (
+      <div className="page-container flex items-center justify-center">
+        <div className="text-center">
+          <div style={{ 
+            width: '40px', height: '40px', 
+            border: '4px solid var(--primary-color)', 
+            borderTopColor: 'transparent', 
+            borderRadius: '50%', 
+            animation: 'spin 1s linear infinite',
+            margin: '0 auto 1rem'
+          }} />
+          <p style={{ color: 'var(--text-secondary)' }}>Memeriksa sesi...</p>
+          <style jsx>{`
+            @keyframes spin { to { transform: rotate(360deg); } }
+          `}</style>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="page-container flex items-center justify-center">

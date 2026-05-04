@@ -61,26 +61,19 @@ GRANT ALL PRIVILEGES ON absen_geofence_db.* TO 'absen_user'@'localhost';
 FLUSH PRIVILEGES;
 USE absen_geofence_db;
 
--- Import schema (copy-paste isi file database/schema.sql)
--- Atau jalankan:
--- source /var/www/absen_siswa/database/schema.sql;
+-- Keluar dari MySQL
+exit;
 ```
 
 ---
 
 ## Langkah 3: Upload Project ke VPS
 
-### Opsi A: Via Git
+### Via Git
 ```bash
 cd /var/www
-sudo git clone <URL_REPO_ANDA> absen_siswa
+sudo git clone https://github.com/Tarilusiana/absen-smkn1-arahan.git absen_siswa
 cd absen_siswa
-```
-
-### Opsi B: Via SCP (manual upload)
-```bash
-# Dari komputer lokal:
-scp -r /home/kur-netura/Documents/Programming/absen_siswa user@IP_VPS:/var/www/absen_siswa
 ```
 
 ### Setup permissions
@@ -91,7 +84,19 @@ cd /var/www/absen_siswa
 
 ---
 
-## Langkah 4: Konfigurasi Environment
+## Langkah 4: Import Schema Database
+
+Setelah repository di-clone, jalankan perintah berikut untuk meng-import schema:
+
+```bash
+cd /var/www/absen_siswa
+mysql -u absen_user -p absen_geofence_db < database/schema.sql
+```
+*(Masukkan password database yang baru Anda buat saat diminta. File ini sudah termasuk data dummy: 5 kelas, akun admin, 2 siswa, dan 1 guru untuk testing.)*
+
+---
+
+## Langkah 5: Konfigurasi Environment
 
 ```bash
 cd /var/www/absen_siswa
@@ -111,7 +116,7 @@ chmod 600 .env.local
 
 ---
 
-## Langkah 5: Install & Build
+## Langkah 6: Install & Build
 
 ```bash
 cd /var/www/absen_siswa
@@ -127,7 +132,7 @@ npm run build
 
 ---
 
-## Langkah 6: Jalankan dengan PM2
+## Langkah 7: Jalankan dengan PM2
 
 ```bash
 # Jalankan aplikasi
@@ -154,7 +159,7 @@ pm2 monit                  # Monitor realtime
 
 ---
 
-## Langkah 7: Setup Nginx Reverse Proxy
+## Langkah 8: Setup Nginx Reverse Proxy
 
 ```bash
 sudo nano /etc/nginx/sites-available/absen-smkn1
@@ -212,7 +217,7 @@ sudo systemctl reload nginx
 
 ---
 
-## Langkah 8: Setup SSL (WAJIB untuk GPS)
+## Langkah 9: Setup SSL (WAJIB untuk GPS)
 
 ### Jika sudah punya domain:
 ```bash
@@ -237,7 +242,7 @@ Lalu ubah path SSL di config Nginx ke file di atas.
 
 ---
 
-## Langkah 9: Set Timezone Server
+## Langkah 10: Set Timezone Server
 
 ```bash
 # Set ke WIB (WAJIB — validasi jam absensi bergantung pada ini)
@@ -250,7 +255,7 @@ date
 
 ---
 
-## Langkah 10: Update Aplikasi Android
+## Langkah 11: Update Aplikasi Android
 
 Setelah server berjalan, ubah `BASE_URL` di aplikasi Android:
 
@@ -275,7 +280,7 @@ APK hasil build: `android/app/build/outputs/apk/debug/app-debug.apk`
 
 ---
 
-## Langkah 11: Import Data Sekolah
+## Langkah 12: Import Data Sekolah
 
 Setelah deploy, login sebagai admin dan:
 1. Tambahkan data **Kelas** (X RPL 1, XI RPL 1, dll)

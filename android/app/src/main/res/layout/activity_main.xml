@@ -62,4 +62,51 @@
             android:paddingEnd="32dp"
             android:backgroundTint="@color/primary" />
     </LinearLayout>
+
+    <!-- Fake GPS Detected View -->
+    <LinearLayout
+        android:id="@+id/fakeGpsView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:padding="32dp"
+        android:visibility="gone"
+        android:background="#fef2f2">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="⚠️"
+            android:textSize="64sp"
+            android:layout_marginBottom="16dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Aplikasi Fake GPS Terdeteksi"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:textColor="#991b1b"
+            android:layout_marginBottom="8dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Sistem keamanan mendeteksi penggunaan Mock Location. Mohon matikan aplikasi Fake GPS Anda untuk melanjutkan absensi."
+            android:textSize="14sp"
+            android:textColor="#7f1d1d"
+            android:textAlignment="center"
+            android:layout_marginBottom="32dp" />
+
+        <Button
+            android:id="@+id/btnRetryFakeGps"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Coba Lagi"
+            android:textStyle="bold"
+            android:paddingStart="32dp"
+            android:paddingEnd="32dp"
+            android:backgroundTint="#dc2626" />
+    </LinearLayout>
 </FrameLayout>
