@@ -6,8 +6,8 @@
 // --- LOKASI ---
 // Koordinat titik pusat sekolah (latitude, longitude)
 // Cara mendapatkan: buka Google Maps → klik kanan lokasi sekolah → salin angka
-export const SCHOOL_LAT = -6.4178;
-export const SCHOOL_LNG = 108.2831;
+export const SCHOOL_LAT = -6.357994305092576;
+export const SCHOOL_LNG = 108.27082969095186;
 
 // Radius maksimal absensi dalam meter
 export const RADIUS_METER = 100;
